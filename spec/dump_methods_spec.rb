@@ -7,7 +7,7 @@ describe SeedDump do
 
       data = []
       ((1 + id_offset)..(3 + id_offset)).each do |i|
-        data << "{#{include_id ? "id: #{i}, " : ''}string: \"string\", text: \"text\", integer: 42, float: 3.14, decimal: \"2.72\", datetime: \"1776-07-04 19:14:00\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: false}"
+        data << "{#{include_id ? "id: #{i}, " : ''}string: \"string\", text: \"text\", integer: 42, float: 3.14, decimal: 2.72, datetime: \"1776-07-04 19:14:00\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: 0}"
       end
 
       output + data.join(",\n  ") + "\n])\n"
@@ -30,7 +30,7 @@ describe SeedDump do
 
     context 'with file option' do
       before do
-        @filename = Tempfile.new(File.join(Dir.tmpdir, 'foo'), nil)
+        @filename = Tempfile.new('foo', nil)
       end
 
       after do
@@ -63,7 +63,7 @@ describe SeedDump do
           Sample.delete_all
           samples = 3.times {|i| FactoryBot.create(:sample, integer: i) }
 
-          SeedDump.dump(Sample.order('integer DESC')).should eq("Sample.create!([\n  {string: \"string\", text: \"text\", integer: 2, float: 3.14, decimal: \"2.72\", datetime: \"1776-07-04 19:14:00\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: false},\n  {string: \"string\", text: \"text\", integer: 1, float: 3.14, decimal: \"2.72\", datetime: \"1776-07-04 19:14:00\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: false},\n  {string: \"string\", text: \"text\", integer: 0, float: 3.14, decimal: \"2.72\", datetime: \"1776-07-04 19:14:00\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: false}\n])\n")
+          SeedDump.dump(Sample.order('integer DESC')).should eq("Sample.create!([\n  {string: \"string\", text: \"text\", integer: 2, float: 3.14, decimal: 2.72, datetime: \"1776-07-04 19:14:00\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: 0},\n  {string: \"string\", text: \"text\", integer: 1, float: 3.14, decimal: 2.72, datetime: \"1776-07-04 19:14:00\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: 0},\n  {string: \"string\", text: \"text\", integer: 0, float: 3.14, decimal: 2.72, datetime: \"1776-07-04 19:14:00\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: 0}\n])\n")
         end
       end
 
@@ -75,7 +75,7 @@ describe SeedDump do
 
       context 'with a limit parameter' do
         it 'should dump the number of models specified by the limit when the limit is smaller than the batch size' do
-          expected_output = "Sample.create!([\n  {string: \"string\", text: \"text\", integer: 42, float: 3.14, decimal: \"2.72\", datetime: \"1776-07-04 19:14:00\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: false}\n])\n"
+          expected_output = "Sample.create!([\n  {string: \"string\", text: \"text\", integer: 42, float: 3.14, decimal: 2.72, datetime: \"1776-07-04 19:14:00\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: 0}\n])\n"
 
           SeedDump.dump(Sample.limit(1)).should eq(expected_output)
         end
@@ -113,7 +113,7 @@ describe SeedDump do
 
     context 'with an exclude parameter' do
       it 'should exclude the specified attributes from the dump' do
-        expected_output = "Sample.create!([\n  {text: \"text\", integer: 42, decimal: \"2.72\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: false},\n  {text: \"text\", integer: 42, decimal: \"2.72\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: false},\n  {text: \"text\", integer: 42, decimal: \"2.72\", time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: false}\n])\n"
+        expected_output = "Sample.create!([\n  {text: \"text\", integer: 42, decimal: 2.72, time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: 0},\n  {text: \"text\", integer: 42, decimal: 2.72, time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: 0},\n  {text: \"text\", integer: 42, decimal: 2.72, time: \"2000-01-01 03:15:00\", date: \"1863-11-19\", binary: \"binary\", boolean: 0}\n])\n"
 
         SeedDump.dump(Sample, exclude: [:id, :created_at, :updated_at, :string, :float, :datetime]).should eq(expected_output)
       end
@@ -130,20 +130,20 @@ describe SeedDump do
     context 'activerecord-import' do
       it 'should dump in the activerecord-import format when import is true' do
         SeedDump.dump(Sample, import: true, exclude: []).should eq <<-RUBY
-Sample.import([:id, :string, :text, :integer, :float, :decimal, :datetime, :time, :date, :binary, :boolean, :created_at, :updated_at], [
-  [1, "string", "text", 42, 3.14, "2.72", "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", false, "1969-07-20 20:18:00", "1989-11-10 04:20:00"],
-  [2, "string", "text", 42, 3.14, "2.72", "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", false, "1969-07-20 20:18:00", "1989-11-10 04:20:00"],
-  [3, "string", "text", 42, 3.14, "2.72", "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", false, "1969-07-20 20:18:00", "1989-11-10 04:20:00"]
+Sample.import_without_validations_or_callbacks([:id, :string, :text, :integer, :float, :decimal, :datetime, :time, :date, :binary, :boolean, :created_at, :updated_at], [
+  [1, "string", "text", 42, 3.14, 2.72, "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", 0, "1969-07-20 20:18:00", "1989-11-10 04:20:00"],
+  [2, "string", "text", 42, 3.14, 2.72, "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", 0, "1969-07-20 20:18:00", "1989-11-10 04:20:00"],
+  [3, "string", "text", 42, 3.14, 2.72, "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", 0, "1969-07-20 20:18:00", "1989-11-10 04:20:00"]
 ])
 RUBY
       end
 
       it 'should omit excluded columns if they are specified' do
         SeedDump.dump(Sample, import: true, exclude: [:id, :created_at, :updated_at]).should eq <<-RUBY
-Sample.import([:string, :text, :integer, :float, :decimal, :datetime, :time, :date, :binary, :boolean], [
-  ["string", "text", 42, 3.14, "2.72", "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", false],
-  ["string", "text", 42, 3.14, "2.72", "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", false],
-  ["string", "text", 42, 3.14, "2.72", "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", false]
+Sample.import_without_validations_or_callbacks([:string, :text, :integer, :float, :decimal, :datetime, :time, :date, :binary, :boolean], [
+  ["string", "text", 42, 3.14, 2.72, "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", 0],
+  ["string", "text", 42, 3.14, 2.72, "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", 0],
+  ["string", "text", 42, 3.14, 2.72, "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", 0]
 ])
 RUBY
       end
@@ -151,10 +151,10 @@ RUBY
       context 'should add the params to the output if they are specified' do
         it 'should dump in the activerecord-import format when import is true' do
           SeedDump.dump(Sample, import: { validate: false }, exclude: []).should eq <<-RUBY
-Sample.import([:id, :string, :text, :integer, :float, :decimal, :datetime, :time, :date, :binary, :boolean, :created_at, :updated_at], [
-  [1, "string", "text", 42, 3.14, "2.72", "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", false, "1969-07-20 20:18:00", "1989-11-10 04:20:00"],
-  [2, "string", "text", 42, 3.14, "2.72", "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", false, "1969-07-20 20:18:00", "1989-11-10 04:20:00"],
-  [3, "string", "text", 42, 3.14, "2.72", "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", false, "1969-07-20 20:18:00", "1989-11-10 04:20:00"]
+Sample.import_without_validations_or_callbacks([:id, :string, :text, :integer, :float, :decimal, :datetime, :time, :date, :binary, :boolean, :created_at, :updated_at], [
+  [1, "string", "text", 42, 3.14, 2.72, "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", 0, "1969-07-20 20:18:00", "1989-11-10 04:20:00"],
+  [2, "string", "text", 42, 3.14, 2.72, "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", 0, "1969-07-20 20:18:00", "1989-11-10 04:20:00"],
+  [3, "string", "text", 42, 3.14, 2.72, "1776-07-04 19:14:00", "2000-01-01 03:15:00", "1863-11-19", "binary", 0, "1969-07-20 20:18:00", "1989-11-10 04:20:00"]
 ], validate: false)
           RUBY
         end
@@ -164,7 +164,7 @@ Sample.import([:id, :string, :text, :integer, :float, :decimal, :datetime, :time
 end
 
 class RangeSample
-  def attributes
+  def attributes_before_type_cast
     {
       "range_with_end_included" => (1..3),
       "range_with_end_excluded" => (1...3),

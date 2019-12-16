@@ -21,8 +21,12 @@ class SeedDump
       # We select only string attribute names to avoid conflict
       # with the composite_primary_keys gem (it returns composite
       # primary key attribute names as hashes).
-      record.attributes.select {|key| key.is_a?(String) || key.is_a?(Symbol) }.each do |attribute, value|
-        attribute_strings << dump_attribute_new(attribute, value, options) unless options[:exclude].include?(attribute.to_sym)
+      record.attributes_before_type_cast.select {|key| key.is_a?(String) }.each do |attribute, value|
+        new_value = value
+        if (options[:serialized]==false)
+          new_value = record.instance_variable_get("@attributes")[attribute].try(:serialized_value) ? record.instance_variable_get("@attributes")[attribute].serialized_value : value
+        end
+        attribute_strings << dump_attribute_new(attribute, new_value, options) unless options[:exclude].include?(attribute.to_sym)
       end
 
       open_character, close_character = options[:import] ? ['[', ']'] : ['{', '}']
@@ -44,6 +48,8 @@ class SeedDump
                 range_to_string(value)
               when ->(v) { v.class.ancestors.map(&:to_s).include?('RGeo::Feature::Instance') }
                 value.to_s
+              when ActiveSupport::HashWithIndifferentAccess
+                return "#{value.to_s}.with_indifferent_access"
               else
                 value
               end
@@ -58,7 +64,9 @@ class SeedDump
     end
 
     def open_io(options)
-      if options[:file].present?
+      if options[:stdout]
+        IO.new(IO.sysopen("/dev/tty", "w"), "w")
+      elsif options[:file].present?
         mode = options[:append] ? 'a+' : 'w+'
 
         File.open(options[:file], mode)
@@ -70,7 +78,7 @@ class SeedDump
     def write_records_to_io(records, io, options)
       options[:exclude] ||= [:id, :created_at, :updated_at]
 
-      method = options[:import] ? 'import' : 'create!'
+      method = options[:import] ? 'import_without_validations_or_callbacks' : 'create!'
       io.write("#{model_for(records)}.#{method}(")
       if options[:import]
         io.write("[#{attribute_names(records, options).map {|name| name.to_sym.inspect}.join(', ')}], ")

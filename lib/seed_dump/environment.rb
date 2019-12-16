@@ -1,11 +1,46 @@
+require 'tsort'
+
 class SeedDump
   module Environment
 
     def dump_using_environment(env = {})
       Rails.application.eager_load!
 
+      # depending on the outcome of https://github.com/rails/rails/issues/37006 this may not need to stay - until then
+      # this is needed to support the change in eager_load! not working the same in Zeitwerk (default rails 6 mode)
+      Zeitwerk::Loader.eager_load_all if Rails::VERSION::MAJOR >= 6 && Rails.autoloaders.zeitwerk_enabled?
+
       models = retrieve_models(env) - retrieve_models_exclude(env)
 
+      # Sort models in dependency order to accommodate foreign key checks or validations.
+      # Based on code by Ryan Stenberg
+      # https://www.viget.com/articles/identifying-foreign-key-dependencies-from-activerecordbase-classes
+      # From: https://github.com/rroblak/seed_dump/pull/102
+      # Also: https://github.com/rroblak/seed_dump/pull/122
+      dependencies = models.map do |model|
+        associations = model.reflect_on_all_associations(:belongs_to)
+        referents = associations.map do |association|
+          if association.options[:polymorphic]
+            ActiveRecord::Base.descendants.select do |other_model|
+              other_model.reflect_on_all_associations(:has_many).any? do |has_many_association|
+                has_many_association.options[:as] == association.name
+              end
+            end
+          else
+            association.klass
+          end
+        end
+        [ model, referents.flatten ]
+      end
+      models = TSortableHash[*dependencies.flatten(1)].tsort
+
+      # Eliminate HABTM models that have the same underlying table; otherwise 
+      # they'll be dumped twice, once in each direction. Probably should apply
+      # to all models, but it's possible there are edge cases in which this 
+      # is not the right behavior.
+      habtm, non_habtm = models.partition {|m| m.name =~ /^HABTM_/}
+      models = non_habtm + habtm.uniq { |m| m.table_name }
+    
       limit = retrieve_limit_value(env)
       append = retrieve_append_value(env)
       models.each do |model|
@@ -15,6 +50,7 @@ class SeedDump
                       append: append,
                       batch_size: retrieve_batch_size_value(env),
                       exclude: retrieve_exclude_value(env),
+                      stdout: retrieve_stdout_value(env),
                       file: retrieve_file_value(env),
                       import: retrieve_import_value(env))
 
@@ -73,6 +109,7 @@ class SeedDump
       #   - Models whose corresponding database tables are empty.
       filtered_models = models.select do |model|
                           !ACTIVE_RECORD_INTERNAL_MODELS.include?(model.to_s) && \
+                          model.name != "primary::SchemaMigration" && \
                           model.table_exists? && \
                           model.exists?
                         end
@@ -90,6 +127,13 @@ class SeedDump
     # false if  no value exists.
     def retrieve_import_value(env)
       parse_boolean_value(env['IMPORT'])
+    end
+
+    # Internal: Returns a Boolean indicating whether the value for the "STDOUT"
+    # key in the given Hash is equal to the String "true" (ignoring case),
+    # false if no value exists.
+    def retrieve_stdout_value(env)
+      parse_boolean_value(env['STDOUT'])
     end
 
     # Internal: Retrieves an Array of Class constants parsed from the value for
@@ -135,5 +179,14 @@ class SeedDump
     def parse_boolean_value(value)
       value.to_s.downcase == 'true'
     end
+
+    class TSortableHash < Hash
+      include TSort
+      alias tsort_each_node each_key
+      def tsort_each_child(node, &block)
+        fetch(node).each(&block)
+      end
+    end
+
   end
 end

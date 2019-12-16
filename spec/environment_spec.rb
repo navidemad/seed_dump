@@ -12,6 +12,13 @@ describe SeedDump do
       FactoryBot.create(:sample)
     end
 
+    describe 'STDOUT' do
+      it 'should pass the STDOUT parameter to the dump method' do
+        SeedDump.should_receive(:dump).with(anything, include(stdout: true))
+        SeedDump.dump_using_environment('STDOUT' => 'true')
+      end
+    end
+
     describe 'APPEND' do
       it "should specify append as true if the APPEND env var is 'true'" do
         SeedDump.should_receive(:dump).with(anything, include(append: true))
